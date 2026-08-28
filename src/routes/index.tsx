@@ -503,7 +503,7 @@ function Comparison() {
                           : "px-4 py-3 text-center"
                       }
                     >
-                      <CompareCell value={row.values[idx]} highlight={tier.highlight} />
+                      <CompareCell value={row.values[idx]} highlight={tier.highlight ?? false} />
                     </td>
                   ))}
                 </tr>
