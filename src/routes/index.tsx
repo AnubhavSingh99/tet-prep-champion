@@ -516,7 +516,7 @@ function Comparison() {
   );
 }
 
-function CompareCell({ value, highlight }: { value: boolean | string; highlight?: boolean }) {
+function CompareCell({ value, highlight }: { value: boolean | string | undefined; highlight?: boolean }) {
   if (value === true) {
     return <Check className={highlight ? "mx-auto size-4 text-primary" : "mx-auto size-4 text-jade"} />;
   }
