@@ -494,16 +494,16 @@ function Comparison() {
               {COMPARE_ROWS.map((row, i) => (
                 <tr key={row.label} className={i % 2 ? "bg-secondary/30" : "bg-card"}>
                   <td className="px-4 py-3 font-medium text-ink">{row.label}</td>
-                  {row.values.map((v, idx) => (
+                  {TIERS.map((tier, idx) => (
                     <td
-                      key={idx}
+                      key={tier.name}
                       className={
-                        TIERS[idx].highlight
+                        tier.highlight
                           ? "bg-primary/[0.06] px-4 py-3 text-center"
                           : "px-4 py-3 text-center"
                       }
                     >
-                      <CompareCell value={v} highlight={TIERS[idx].highlight} />
+                      <CompareCell value={row.values[idx]} highlight={tier.highlight} />
                     </td>
                   ))}
                 </tr>
