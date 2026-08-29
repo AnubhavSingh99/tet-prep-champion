@@ -10,33 +10,189 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as LeaderboardRouteImport } from './routes/leaderboard'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PurchasesRouteImport } from './routes/purchases'
+import { Route as TestsRouteImport } from './routes/tests'
+import { Route as WrongQuestionsRouteImport } from './routes/wrong-questions'
+import { Route as AttemptsAttemptIdRouteImport } from './routes/attempts.$attemptId'
+import { Route as CheckoutPlanRouteImport } from './routes/checkout.$plan'
+import { Route as TestsIndexRouteImport } from './routes/tests.index'
+import { Route as TestsTestSlugRouteImport } from './routes/tests.$testSlug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaderboardRoute = LeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchasesRoute = PurchasesRouteImport.update({
+  id: '/purchases',
+  path: '/purchases',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestsRoute = TestsRouteImport.update({
+  id: '/tests',
+  path: '/tests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WrongQuestionsRoute = WrongQuestionsRouteImport.update({
+  id: '/wrong-questions',
+  path: '/wrong-questions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AttemptsAttemptIdRoute = AttemptsAttemptIdRouteImport.update({
+  id: '/attempts/$attemptId',
+  path: '/attempts/$attemptId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutPlanRoute = CheckoutPlanRouteImport.update({
+  id: '/checkout/$plan',
+  path: '/checkout/$plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestsIndexRoute = TestsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => TestsRoute,
+} as any)
+const TestsTestSlugRoute = TestsTestSlugRouteImport.update({
+  id: '/$testSlug',
+  path: '/$testSlug',
+  getParentRoute: () => TestsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/auth': typeof AuthRoute
+  '/dashboard': typeof DashboardRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/profile': typeof ProfileRoute
+  '/purchases': typeof PurchasesRoute
+  '/tests': typeof TestsRouteWithChildren
+  '/wrong-questions': typeof WrongQuestionsRoute
+  '/attempts/$attemptId': typeof AttemptsAttemptIdRoute
+  '/checkout/$plan': typeof CheckoutPlanRoute
+  '/tests/$testSlug': typeof TestsTestSlugRoute
+  '/tests/': typeof TestsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/auth': typeof AuthRoute
+  '/dashboard': typeof DashboardRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/profile': typeof ProfileRoute
+  '/purchases': typeof PurchasesRoute
+  '/wrong-questions': typeof WrongQuestionsRoute
+  '/attempts/$attemptId': typeof AttemptsAttemptIdRoute
+  '/checkout/$plan': typeof CheckoutPlanRoute
+  '/tests/$testSlug': typeof TestsTestSlugRoute
+  '/tests': typeof TestsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/auth': typeof AuthRoute
+  '/dashboard': typeof DashboardRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/profile': typeof ProfileRoute
+  '/purchases': typeof PurchasesRoute
+  '/tests': typeof TestsRouteWithChildren
+  '/wrong-questions': typeof WrongQuestionsRoute
+  '/attempts/$attemptId': typeof AttemptsAttemptIdRoute
+  '/checkout/$plan': typeof CheckoutPlanRoute
+  '/tests/$testSlug': typeof TestsTestSlugRoute
+  '/tests/': typeof TestsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/auth'
+    | '/dashboard'
+    | '/leaderboard'
+    | '/profile'
+    | '/purchases'
+    | '/tests'
+    | '/wrong-questions'
+    | '/attempts/$attemptId'
+    | '/checkout/$plan'
+    | '/tests/$testSlug'
+    | '/tests/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/admin'
+    | '/auth'
+    | '/dashboard'
+    | '/leaderboard'
+    | '/profile'
+    | '/purchases'
+    | '/wrong-questions'
+    | '/attempts/$attemptId'
+    | '/checkout/$plan'
+    | '/tests/$testSlug'
+    | '/tests'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/auth'
+    | '/dashboard'
+    | '/leaderboard'
+    | '/profile'
+    | '/purchases'
+    | '/tests'
+    | '/wrong-questions'
+    | '/attempts/$attemptId'
+    | '/checkout/$plan'
+    | '/tests/$testSlug'
+    | '/tests/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
+  AuthRoute: typeof AuthRoute
+  DashboardRoute: typeof DashboardRoute
+  LeaderboardRoute: typeof LeaderboardRoute
+  ProfileRoute: typeof ProfileRoute
+  PurchasesRoute: typeof PurchasesRoute
+  TestsRoute: typeof TestsRouteWithChildren
+  WrongQuestionsRoute: typeof WrongQuestionsRoute
+  AttemptsAttemptIdRoute: typeof AttemptsAttemptIdRoute
+  CheckoutPlanRoute: typeof CheckoutPlanRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +204,117 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchases': {
+      id: '/purchases'
+      path: '/purchases'
+      fullPath: '/purchases'
+      preLoaderRoute: typeof PurchasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tests': {
+      id: '/tests'
+      path: '/tests'
+      fullPath: '/tests'
+      preLoaderRoute: typeof TestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wrong-questions': {
+      id: '/wrong-questions'
+      path: '/wrong-questions'
+      fullPath: '/wrong-questions'
+      preLoaderRoute: typeof WrongQuestionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/attempts/$attemptId': {
+      id: '/attempts/$attemptId'
+      path: '/attempts/$attemptId'
+      fullPath: '/attempts/$attemptId'
+      preLoaderRoute: typeof AttemptsAttemptIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout/$plan': {
+      id: '/checkout/$plan'
+      path: '/checkout/$plan'
+      fullPath: '/checkout/$plan'
+      preLoaderRoute: typeof CheckoutPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tests/': {
+      id: '/tests/'
+      path: '/'
+      fullPath: '/tests/'
+      preLoaderRoute: typeof TestsIndexRouteImport
+      parentRoute: typeof TestsRoute
+    }
+    '/tests/$testSlug': {
+      id: '/tests/$testSlug'
+      path: '/$testSlug'
+      fullPath: '/tests/$testSlug'
+      preLoaderRoute: typeof TestsTestSlugRouteImport
+      parentRoute: typeof TestsRoute
+    }
   }
 }
 
+interface TestsRouteChildren {
+  TestsTestSlugRoute: typeof TestsTestSlugRoute
+  TestsIndexRoute: typeof TestsIndexRoute
+}
+
+const TestsRouteChildren: TestsRouteChildren = {
+  TestsTestSlugRoute: TestsTestSlugRoute,
+  TestsIndexRoute: TestsIndexRoute,
+}
+
+const TestsRouteWithChildren = TestsRoute._addFileChildren(TestsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
+  AuthRoute: AuthRoute,
+  DashboardRoute: DashboardRoute,
+  LeaderboardRoute: LeaderboardRoute,
+  ProfileRoute: ProfileRoute,
+  PurchasesRoute: PurchasesRoute,
+  TestsRoute: TestsRouteWithChildren,
+  WrongQuestionsRoute: WrongQuestionsRoute,
+  AttemptsAttemptIdRoute: AttemptsAttemptIdRoute,
+  CheckoutPlanRoute: CheckoutPlanRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

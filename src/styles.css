@@ -195,11 +195,7 @@
 }
 
 @utility card-premium {
-  background: linear-gradient(
-    160deg,
-    oklch(0.28 0.05 262),
-    oklch(0.2 0.04 260)
-  );
+  background: linear-gradient(160deg, oklch(0.28 0.05 262), oklch(0.2 0.04 260));
   color: oklch(0.96 0.01 85);
   border-color: color-mix(in oklab, var(--color-saffron) 35%, transparent);
 }
@@ -217,17 +213,38 @@
 }
 
 @keyframes float-slow {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 @utility animate-float-slow {
   animation: float-slow 6s ease-in-out infinite;
 }
 
 @keyframes shimmer-line {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
 }
 @utility animate-shimmer-line {
   animation: shimmer-line 2.4s ease-in-out infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-33.333%);
+  }
+}
+@utility animate-marquee {
+  animation: marquee 22s linear infinite;
 }
