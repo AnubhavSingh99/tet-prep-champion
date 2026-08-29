@@ -248,3 +248,15 @@
 @utility animate-marquee {
   animation: marquee 22s linear infinite;
 }
+
+@keyframes marquee-vertical {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+@utility animate-marquee-vertical {
+  animation: marquee-vertical 12s linear infinite;
+}

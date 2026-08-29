@@ -20,6 +20,7 @@ import {
   Brain,
   Landmark,
   Laptop,
+  Star,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -182,6 +183,45 @@ const SUBJECT_PRACTICE = [
   },
 ];
 
+const EXAM_CARD_STYLES = [
+  {
+    gradient: "from-orange-500 to-rose-500",
+    badge: "Bestseller",
+    rating: "4.9",
+    accent: "bg-orange-500",
+  },
+  {
+    gradient: "from-sky-500 to-indigo-600",
+    badge: "Popular",
+    rating: "4.8",
+    accent: "bg-sky-500",
+  },
+  {
+    gradient: "from-emerald-500 to-teal-600",
+    badge: "Teacher Pick",
+    rating: "4.9",
+    accent: "bg-emerald-500",
+  },
+  {
+    gradient: "from-amber-400 to-orange-500",
+    badge: "Foundation",
+    rating: "4.7",
+    accent: "bg-amber-400",
+  },
+  {
+    gradient: "from-fuchsia-500 to-violet-600",
+    badge: "UP Special",
+    rating: "4.8",
+    accent: "bg-fuchsia-500",
+  },
+  {
+    gradient: "from-cyan-500 to-blue-600",
+    badge: "New",
+    rating: "4.8",
+    accent: "bg-cyan-500",
+  },
+];
+
 function PackagePage() {
   return (
     <div className="min-h-screen bg-[oklch(0.98_0.01_95)] text-foreground">
@@ -189,10 +229,10 @@ function PackagePage() {
       <SiteHeader />
       <main>
         <Hero />
-        <ImportantMessages />
+        <StatsStrip />
         <ReferralCard />
-        <SubjectPractice />
         <ExamBundles />
+        <SubjectPractice />
         <Pricing />
         <FinalCta />
       </main>
@@ -298,7 +338,7 @@ function RunningOfferBars() {
 function Hero() {
   return (
     <section id="top" className="px-4 py-8 sm:px-5 md:py-12">
-      <div className="mx-auto grid max-w-6xl items-center gap-6 lg:grid-cols-[1.08fr_0.92fr]">
+      <div className="mx-auto grid max-w-6xl items-stretch gap-6 lg:grid-cols-[1.08fr_0.92fr]">
         <div className="rounded-[1.75rem] border border-black/5 bg-white p-6 shadow-card sm:p-8 md:p-10">
           <span className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-4 py-2 text-sm font-black text-orange-700">
             <Flame className="size-4" />
@@ -329,54 +369,33 @@ function Hero() {
           </div>
         </div>
 
-        <div className="grid gap-4">
-          <div className="rounded-[1.75rem] bg-gradient-to-br from-sky-500 to-blue-700 p-6 text-white shadow-card">
-            <p className="text-sm font-black uppercase text-white/75">Today</p>
-            <h2 className="mt-2 text-3xl font-black">Free Daily CA</h2>
-            <p className="mt-2 text-white/80">20 questions • 8AM • all aspirants</p>
-            <Link
-              to="/tests/free-daily-current-affairs"
-              className="mt-5 inline-flex rounded-full bg-white px-5 py-2.5 text-sm font-black text-black"
-            >
-              Start Now
-            </Link>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              ["6", "Exams", "bg-pink-500"],
-              ["52", "Subjects", "bg-emerald-500"],
-              ["3200", "Uploaded Qs", "bg-amber-400"],
-            ].map(([n, l, color]) => (
-              <div key={l} className={`${color} rounded-2xl p-4 text-black shadow-sm`}>
-                <dt className="text-2xl font-black">{n}</dt>
-                <dd className="mt-1 text-xs font-black uppercase">{l}</dd>
-              </div>
-            ))}
-          </div>
-        </div>
+        <MovingUpdatesPanel />
       </div>
     </section>
   );
 }
 
-function ImportantMessages() {
+function MovingUpdatesPanel() {
+  const movingMessages = [...IMPORTANT_MESSAGES, ...IMPORTANT_MESSAGES];
+
   return (
-    <section className="px-4 pb-6 sm:px-5">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 text-xl font-black text-ink">
-            <Megaphone className="size-5 text-orange-500" />
-            Updates
-          </h2>
-          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
-            Live
-          </span>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {IMPORTANT_MESSAGES.map((message) => (
+    <aside className="flex h-full flex-col rounded-[1.75rem] border border-black/5 bg-white p-6 shadow-card sm:p-8 md:p-10">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-xl font-black text-ink">
+          <Megaphone className="size-5 text-orange-500" />
+          Updates
+        </h2>
+        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
+          Live
+        </span>
+      </div>
+
+      <div className="mt-5 min-h-[300px] flex-1 overflow-hidden rounded-[22px] border border-black/5 bg-[oklch(0.985_0.008_95)] p-3">
+        <div className="animate-marquee-vertical grid gap-3">
+          {movingMessages.map((message, index) => (
             <div
-              key={message}
-              className="rounded-2xl border border-black/5 bg-white px-4 py-3 text-sm font-bold text-ink shadow-sm"
+              key={`${message}-${index}`}
+              className="rounded-2xl border border-black/5 bg-white px-4 py-3 text-sm font-black text-ink shadow-sm"
             >
               <span className="mr-2 text-primary">•</span>
               {message}
@@ -384,6 +403,32 @@ function ImportantMessages() {
           ))}
         </div>
       </div>
+
+      <Link
+        to="/tests/free-daily-current-affairs"
+        className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-black px-5 py-3 text-sm font-black text-white"
+      >
+        Start Free Daily Quiz
+      </Link>
+    </aside>
+  );
+}
+
+function StatsStrip() {
+  return (
+    <section className="px-4 pb-8 sm:px-5">
+      <dl className="mx-auto grid max-w-6xl grid-cols-3 gap-3">
+        {[
+          ["6", "Exams", "bg-pink-500"],
+          ["52", "Subjects", "bg-emerald-500"],
+          ["3200", "Uploaded Qs", "bg-amber-400"],
+        ].map(([n, l, color]) => (
+          <div key={l} className={`${color} rounded-2xl p-4 text-black shadow-card sm:p-5`}>
+            <dt className="text-2xl font-black sm:text-3xl">{n}</dt>
+            <dd className="mt-1 text-[11px] font-black uppercase sm:text-xs">{l}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
@@ -423,15 +468,15 @@ function ReferralCard() {
 
 function SubjectPractice() {
   return (
-    <section className="mx-auto max-w-6xl px-4 py-10 sm:px-5 md:py-16">
+    <section className="mx-auto max-w-6xl px-4 py-10 sm:px-5 md:py-14">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-primary">Practice packs</p>
-          <h2 className="mt-2 text-balance text-4xl font-black leading-tight text-ink md:text-5xl">
+          <h2 className="mt-2 text-balance text-3xl font-black leading-tight text-ink md:text-4xl">
             Subject Wise Practice - 8 Subjects
           </h2>
         </div>
-        <span className="w-fit rounded-full border border-border bg-card px-5 py-3 text-sm font-semibold text-ink shadow-sm">
+        <span className="w-fit rounded-full border border-black/5 bg-white px-5 py-3 text-sm font-black text-ink shadow-sm">
           Free samples • Full packs
         </span>
       </div>
@@ -439,24 +484,26 @@ function SubjectPractice() {
         {SUBJECT_PRACTICE.map(({ title, questions, badge, icon: Icon, gradient }) => (
           <article
             key={title}
-            className="overflow-hidden rounded-[1.25rem] border border-border bg-card shadow-card"
+            className="overflow-hidden rounded-[20px] border border-black/5 bg-white shadow-card"
           >
-            <div className={`min-h-36 bg-gradient-to-br ${gradient} p-5 text-white`}>
+            <div className={`min-h-32 bg-gradient-to-br ${gradient} p-4 text-white`}>
               <div className="flex items-start justify-between gap-3">
-                <Icon className="size-10 opacity-85" />
-                <span className="rounded-full bg-black/20 px-3 py-1 text-xs font-black uppercase text-white ring-1 ring-white/15">
+                <span className="grid size-11 place-items-center rounded-2xl bg-white/20 ring-1 ring-white/20">
+                  <Icon className="size-6" />
+                </span>
+                <span className="rounded-full bg-black/25 px-3 py-1 text-[11px] font-black uppercase text-white ring-1 ring-white/15">
                   {badge}
                 </span>
               </div>
-              <h3 className="mt-7 text-2xl font-black leading-tight text-white">
+              <h3 className="mt-6 text-2xl font-black leading-tight text-white">
                 {title} • {questions}
               </h3>
             </div>
-            <div className="space-y-4 p-4 text-center">
-              <div className="flex items-center justify-between gap-2">
+            <div className="space-y-3 p-4 text-center">
+              <div className="grid grid-cols-2 gap-2">
                 <Link
                   to="/tests"
-                  className="flex min-h-14 flex-1 items-center justify-center rounded-full border border-border bg-card px-3 text-sm font-black text-ink shadow-sm"
+                  className="flex min-h-12 items-center justify-center rounded-full border border-black/10 bg-white px-3 text-sm font-black text-ink shadow-sm"
                 >
                   Free 10 Qs
                 </Link>
@@ -464,12 +511,12 @@ function SubjectPractice() {
                   to="/checkout/$plan"
                   params={{ plan: "complete" }}
                   search={{ exam: "UPTET_CTET" }}
-                  className="flex min-h-14 flex-1 items-center justify-center rounded-full bg-black px-3 text-sm font-black leading-tight text-white shadow-sm"
+                  className="flex min-h-12 items-center justify-center rounded-full bg-black px-3 text-sm font-black leading-tight text-white shadow-sm"
                 >
-                  Full 300 Qs @₹49
+                  ₹49 Full
                 </Link>
               </div>
-              <p className="text-sm font-medium text-muted-foreground">Inclusive of taxes</p>
+              <p className="text-xs font-bold text-muted-foreground">Inclusive of taxes</p>
             </div>
           </article>
         ))}
@@ -480,80 +527,80 @@ function SubjectPractice() {
 
 function ExamBundles() {
   return (
-    <section id="bundles" className="mx-auto max-w-6xl px-5 py-16 md:py-20">
+    <section id="bundles" className="mx-auto max-w-6xl px-5 py-14 md:py-16">
       <SectionHeading
         eyebrow="Master course packages"
-        title="Six UP exam bundles from the syllabus PDF"
-        subtitle="Each package has subjects, syllabus focus, PYQs, mock blueprint and daily quiz plan."
+        title="Choose the exam first"
+        subtitle="Each exam keeps its own subjects, mocks, PYQs and daily quiz plan."
       />
-      <div className="mt-10 grid gap-5 lg:grid-cols-2">
-        {UP_EXAM_BUNDLES.map((bundle) => (
-          <article
-            key={bundle.id}
-            className="rounded-2xl border border-border bg-card p-5 shadow-card"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-primary">
-                  {bundle.id}
-                </p>
-                <h3 className="mt-1 text-2xl font-extrabold text-ink">{bundle.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {UP_EXAM_BUNDLES.map((bundle, index) => {
+          const style = EXAM_CARD_STYLES[index % EXAM_CARD_STYLES.length];
+          return (
+            <article
+              key={bundle.id}
+              className="overflow-hidden rounded-[20px] border border-black/5 bg-white shadow-card"
+            >
+              <div className={`bg-gradient-to-br ${style.gradient} p-5 text-white`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-white/70">
+                      {bundle.id}
+                    </p>
+                    <h3 className="mt-2 text-2xl font-black leading-tight text-white">
+                      {bundle.title}
+                    </h3>
+                  </div>
+                  <span className="rounded-full bg-black/25 px-3 py-1 text-[11px] font-black uppercase ring-1 ring-white/15">
+                    {style.badge}
+                  </span>
+                </div>
+                <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white/18 px-3 py-1.5 text-xs font-black">
+                  <Star className="size-3.5 fill-amber-300 text-amber-300" />
+                  {style.rating} rating • {bundle.tier}
+                </div>
+              </div>
+
+              <dl className="grid grid-cols-4 gap-px bg-black/5 text-center">
+                {[
+                  [bundle.subjectsCount, "Subjects"],
+                  [bundle.pyqQuestions, "PYQs"],
+                  [bundle.mocks, "Mocks"],
+                  [bundle.dailyQuizzes, "Daily"],
+                ].map(([value, label]) => (
+                  <div key={label} className="bg-white px-2 py-3">
+                    <dt className="text-base font-black text-ink">{value}</dt>
+                    <dd className="text-[10px] font-black uppercase text-muted-foreground">
+                      {label}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+
+              <div className="p-5">
+                <p className="text-sm font-semibold leading-relaxed text-muted-foreground">
                   {bundle.pattern}
                 </p>
-              </div>
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-extrabold text-primary">
-                {bundle.tier}
-              </span>
-            </div>
-
-            <dl className="mt-5 grid grid-cols-4 gap-2 text-center">
-              {[
-                [bundle.subjectsCount, "Subjects"],
-                [bundle.pyqQuestions, "PYQs"],
-                [bundle.mocks, "Mocks"],
-                [bundle.dailyQuizzes, "Daily"],
-              ].map(([value, label]) => (
-                <div key={label} className="rounded-xl bg-secondary px-2 py-3">
-                  <dt className="text-lg font-extrabold text-ink">{value}</dt>
-                  <dd className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                    {label}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <div>
-                <h4 className="text-sm font-extrabold text-ink">Subjects</h4>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {bundle.subjects.slice(0, 5).join(", ")}
-                  {bundle.subjects.length > 5 ? "..." : ""}
-                </p>
-              </div>
-              <div>
-                <h4 className="text-sm font-extrabold text-ink">Syllabus focus</h4>
-                <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
-                  {bundle.syllabus.slice(0, 2).map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <Check className="mt-0.5 size-4 shrink-0 text-jade" />
-                      <span>{item}</span>
-                    </li>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {bundle.subjects.slice(0, 4).map((subject) => (
+                    <span
+                      key={subject}
+                      className="rounded-full bg-black/[0.04] px-3 py-1.5 text-xs font-black text-ink"
+                    >
+                      {subject}
+                    </span>
                   ))}
-                </ul>
+                </div>
+                <Link
+                  to="/tests"
+                  className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-black px-5 py-3 text-sm font-black text-white"
+                >
+                  View Tests
+                </Link>
               </div>
-            </div>
-
-            <div className="mt-5 rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground">
-              <p>
-                <strong className="text-ink">Mock plan:</strong> {bundle.mockPlan}
-              </p>
-              <p className="mt-2">
-                <strong className="text-ink">Daily quiz:</strong> {bundle.dailyPlan}
-              </p>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
     </section>
   );
