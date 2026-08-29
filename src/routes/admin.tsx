@@ -52,8 +52,12 @@ function AdminPage() {
               <Row
                 key={test.id}
                 main={test.title}
-                sub={`${test.categoryName} · ${test.questionCount} questions · ${test.packageSlug}`}
-              />
+                sub={`${test.examName ?? "All exams"} · ${test.categoryName} · ${test.questionCount} questions · ${test.packageSlug}`}
+              >
+                <StatusPill>
+                  {test.isUnlocked ? "unlocked" : (test.accessKind ?? "paid")}
+                </StatusPill>
+              </Row>
             ))}
           </AdminSection>
 
@@ -82,15 +86,19 @@ function AdminPage() {
           </AdminSection>
 
           <AdminSection icon={CreditCard} title="Payments">
-            {query.data.payments.map((payment) => (
-              <Row
-                key={payment.id}
-                main={`${payment.packageName} - ₹${payment.amountInr}`}
-                sub={payment.message}
-              >
-                <StatusPill>{payment.status}</StatusPill>
-              </Row>
-            ))}
+            {query.data.payments.length ? (
+              query.data.payments.map((payment) => (
+                <Row
+                  key={payment.id}
+                  main={`${payment.packageName} - ₹${payment.amountInr}`}
+                  sub={`${payment.examName ?? "Exam"} · ${payment.message}`}
+                >
+                  <StatusPill>{payment.status}</StatusPill>
+                </Row>
+              ))
+            ) : (
+              <EmptyState title="No payments">Package purchases will appear here.</EmptyState>
+            )}
           </AdminSection>
 
           <AdminSection icon={Database} title="Categories">

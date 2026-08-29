@@ -1,10 +1,9 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Eye, EyeOff, Mail, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
-import { startDemoSession } from "@/hooks/use-auth-session";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Sign in | UPQuizBazaar" }] }),
@@ -12,7 +11,12 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const navigate = useNavigate();
+  const session = useAuthSession();
+  const requestedRedirect =
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("redirect");
+  const redirectTo = requestedRedirect?.startsWith("/") ? requestedRedirect : "/dashboard";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -20,6 +24,12 @@ function AuthPage() {
   const [fullName, setFullName] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (session.status === "authenticated") {
+      window.location.replace(redirectTo);
+    }
+  }, [redirectTo, session.status]);
 
   async function submit() {
     setBusy(true);
@@ -43,7 +53,7 @@ function AuthPage() {
           ? "Account created. Check your email if confirmation is enabled."
           : "Signed in.",
       );
-      await navigate({ to: "/dashboard" });
+      window.location.replace(redirectTo);
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -58,11 +68,14 @@ function AuthPage() {
   async function signInWithGoogle() {
     setBusy(true);
     setMessage("");
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}/dashboard`,
+    const result = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}${redirectTo}`,
+      },
     });
-    if ("error" in result && result.error) {
-      setMessage(result.error instanceof Error ? result.error.message : "Google sign-in failed.");
+    if (result.error) {
+      setMessage(result.error.message || "Google sign-in failed.");
       setBusy(false);
     }
   }
@@ -156,15 +169,6 @@ function AuthPage() {
             className="mt-3 w-full rounded-full border border-border bg-background px-5 py-3 text-sm font-bold text-ink"
           >
             Continue with Google
-          </button>
-          <button
-            onClick={() => {
-              startDemoSession();
-              void navigate({ to: "/dashboard" });
-            }}
-            className="mt-3 w-full rounded-full border border-primary/30 bg-primary/10 px-5 py-3 text-sm font-bold text-primary"
-          >
-            Continue in demo mode
           </button>
         </section>
       </div>

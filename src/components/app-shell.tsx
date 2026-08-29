@@ -5,6 +5,7 @@ import {
   CreditCard,
   Home,
   LogOut,
+  Menu,
   Settings,
   Trophy,
   User,
@@ -14,7 +15,7 @@ import type { ReactNode } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 
-import { UnavailableState, UnauthorizedState } from "./states";
+import { LoadingState, UnavailableState } from "./states";
 import { clearDemoSession, useAuthSession } from "@/hooks/use-auth-session";
 
 const learnerNav = [
@@ -32,12 +33,16 @@ export function LearnerShell({ children }: { children: ReactNode }) {
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const session = useAuthSession();
-  if (session.status === "unauthenticated") {
+  if (session.status === "loading") {
     return (
       <ShellFrame>
-        <UnauthorizedState admin />
+        <LoadingState label="Checking admin session" />
       </ShellFrame>
     );
+  }
+
+  if (session.status === "unauthenticated") {
+    return <AuthRedirect />;
   }
 
   return (
@@ -55,22 +60,37 @@ function PlatformShell({
   nav: { to: string; label: string; icon: typeof Home }[];
 }) {
   const session = useAuthSession();
-  if (session.status === "unauthenticated") {
+  async function handleSignOut() {
+    clearDemoSession();
+    await supabase.auth.signOut();
+    for (const key of Object.keys(window.localStorage)) {
+      if (key.startsWith("sb-") || key.includes("supabase")) {
+        window.localStorage.removeItem(key);
+      }
+    }
+    window.location.replace("/auth");
+  }
+
+  if (session.status === "loading") {
     return (
       <ShellFrame>
-        <UnauthorizedState />
+        <LoadingState label="Checking your session" />
       </ShellFrame>
     );
+  }
+
+  if (session.status === "unauthenticated") {
+    return <AuthRedirect />;
   }
 
   return (
     <ShellFrame>
       {session.status === "unavailable" && <UnavailableState />}
-      <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-        <aside className="rounded-2xl border border-border bg-card p-3 shadow-card">
-          <Link to="/" className="mb-3 flex items-center gap-2 px-2 py-2">
-            <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
-              <Trophy className="size-5" />
+      <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[230px_1fr]">
+        <aside className="rounded-[28px] border border-black/5 bg-white p-3 shadow-card">
+          <Link to="/" className="mb-3 flex items-center gap-2 rounded-2xl px-2 py-2">
+            <span className="grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-orange-500 via-rose-500 to-blue-600 text-sm font-black text-white">
+              UP
             </span>
             <span className="font-extrabold text-ink">
               UP<span className="text-primary">Quiz</span>Bazaar
@@ -82,25 +102,53 @@ function PlatformShell({
             ))}
           </nav>
           <button
-            onClick={() => {
-              clearDemoSession();
-              void supabase.auth.signOut();
-              window.location.assign("/");
-            }}
-            className="mt-4 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-ink"
+            onClick={() => void handleSignOut()}
+            className="mt-4 flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-bold text-muted-foreground transition-colors hover:bg-orange-50 hover:text-ink"
           >
             <LogOut className="size-4" />
             Sign out
           </button>
         </aside>
-        <section className="min-w-0">{children}</section>
+        <section className="min-w-0">
+          <div className="mb-5 flex items-center justify-between rounded-[24px] border border-black/5 bg-white/80 px-4 py-3 shadow-sm backdrop-blur">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-primary">
+                Learner Panel
+              </p>
+              <p className="text-sm font-semibold text-muted-foreground">
+                Exam-wise practice workspace
+              </p>
+            </div>
+            <button
+              aria-label="Open navigation"
+              className="grid size-11 place-items-center rounded-full bg-black text-white lg:hidden"
+            >
+              <Menu className="size-5" />
+            </button>
+          </div>
+          {children}
+        </section>
       </div>
     </ShellFrame>
   );
 }
 
+function AuthRedirect() {
+  if (typeof window !== "undefined") {
+    const redirect = window.location.pathname === "/auth" ? "/dashboard" : window.location.pathname;
+    window.location.replace(`/auth?redirect=${encodeURIComponent(redirect)}`);
+  }
+  return (
+    <ShellFrame>
+      <LoadingState label="Opening sign in" />
+    </ShellFrame>
+  );
+}
+
 function ShellFrame({ children }: { children: ReactNode }) {
-  return <div className="min-h-screen bg-cream bg-grain px-5 py-6 text-foreground">{children}</div>;
+  return (
+    <div className="min-h-screen bg-[#f8f7f2] px-4 py-5 text-foreground sm:px-5">{children}</div>
+  );
 }
 
 function NavItem({ to, label, icon: Icon }: { to: string; label: string; icon: typeof Home }) {
@@ -110,10 +158,10 @@ function NavItem({ to, label, icon: Icon }: { to: string; label: string; icon: t
     <Link
       to={to}
       className={
-        "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors " +
+        "flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-bold transition-colors " +
         (active
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-secondary hover:text-ink")
+          ? "bg-black text-white shadow-sm"
+          : "text-muted-foreground hover:bg-orange-50 hover:text-ink")
       }
     >
       <Icon className="size-4" />
@@ -132,28 +180,36 @@ export function PageHeader({
   children?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-3 rounded-2xl border border-border bg-card p-6 shadow-card md:flex-row md:items-end">
+    <div className="mb-5 flex flex-col justify-between gap-3 rounded-[28px] border border-black/5 bg-gradient-to-br from-white via-orange-50 to-sky-50 p-6 shadow-card md:flex-row md:items-end">
       <div>
         <p className="text-xs font-bold uppercase tracking-widest text-primary">{eyebrow}</p>
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-ink">{title}</h1>
+        <h1 className="mt-1 text-3xl font-black tracking-tight text-ink">{title}</h1>
       </div>
       {children}
     </div>
   );
 }
 
-export function StatCard({ label, value }: { label: string; value: string | number }) {
+export function StatCard({
+  label,
+  value,
+  tone = "bg-white",
+}: {
+  label: string;
+  value: string | number;
+  tone?: string;
+}) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-extrabold text-ink">{value}</p>
+    <div className={`${tone} rounded-[22px] border border-black/5 p-5 text-black shadow-card`}>
+      <p className="text-xs font-black uppercase tracking-widest opacity-70">{label}</p>
+      <p className="mt-2 text-3xl font-black">{value}</p>
     </div>
   );
 }
 
 export function StatusPill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+    <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-700">
       {children}
     </span>
   );

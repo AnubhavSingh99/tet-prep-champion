@@ -61,7 +61,7 @@ end;
 $$;
 
 create table public.packages (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   slug text not null unique,
   name text not null,
   price_inr integer not null check (price_inr >= 0),
@@ -77,7 +77,7 @@ create table public.packages (
 );
 
 create table public.categories (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   slug text not null unique,
   name text not null,
   description text,
@@ -86,10 +86,15 @@ create table public.categories (
 );
 
 create table public.tests (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   slug text not null unique,
-  category_id uuid references public.categories(id) on delete set null,
-  package_id uuid references public.packages(id) on delete set null,
+  category_id text references public.categories(id) on delete set null,
+  package_id text references public.packages(id) on delete set null,
+  exam_code text not null default 'ALL',
+  exam_name text not null default 'All UP Exams',
+  subject text,
+  test_type text not null default 'Subject_Mock',
+  access_kind text not null default 'paid' check (access_kind in ('free', 'paid')),
   title text not null,
   description text,
   duration_minutes integer not null check (duration_minutes > 0),
@@ -101,8 +106,8 @@ create table public.tests (
 );
 
 create table public.questions (
-  id uuid primary key default gen_random_uuid(),
-  test_id uuid not null references public.tests(id) on delete cascade,
+  id text primary key,
+  test_id text not null references public.tests(id) on delete cascade,
   question_text text not null,
   question_type public.question_type not null default 'single_choice',
   options jsonb not null,
@@ -117,7 +122,7 @@ create table public.questions (
 create table public.payments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  package_id uuid not null references public.packages(id),
+  package_id text not null references public.packages(id),
   exam_code text not null,
   exam_name text not null,
   provider text not null default 'paddle',
@@ -135,7 +140,7 @@ create table public.payments (
 create table public.entitlements (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  package_id uuid not null references public.packages(id),
+  package_id text not null references public.packages(id),
   exam_code text not null,
   exam_name text not null,
   payment_id uuid references public.payments(id),
@@ -149,7 +154,8 @@ create table public.entitlements (
 create table public.attempts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  test_id uuid not null references public.tests(id) on delete cascade,
+  test_id text not null,
+  test_title text not null,
   status public.attempt_status not null default 'in_progress',
   answers jsonb not null default '{}'::jsonb,
   score integer,
@@ -250,11 +256,11 @@ for select using (public.is_admin());
 create policy "Settings managed by admins" on public.settings
 for all using (public.is_admin()) with check (public.is_admin());
 
-insert into public.packages (slug, name, price_inr, tagline, badge, is_featured, sort_order, feature_limit, features)
+insert into public.packages (id, slug, name, price_inr, tagline, badge, is_featured, sort_order, feature_limit, features)
 values
-('starter', 'Starter', 29, 'Get started with the essentials.', null, false, 1, '{"mocks":5,"questions":500,"subjectTests":10}', array['5 Full Mock Tests','10 Subject Tests','500+ Questions','Basic result analysis','Exam-like timer','Solutions for every question']),
-('complete', 'Complete', 49, 'Most balanced value for serious aspirants.', 'Best Value', false, 2, '{"mocks":15,"questions":2000,"subjectTests":40}', array['15 Full Mock Tests','40 Subject / Chapter Tests','2,000+ Questions','Previous Year Questions','Detailed explanations','Performance analysis','Wrong-question practice']),
-('premium', 'Premium', 99, 'The complete TET preparation package.', 'Best Selling', true, 3, '{"mocks":30,"questions":5000,"subjectTests":100}', array['30 Full Mock Tests','100+ Chapter / Subject Tests','5,000+ Questions','PYQs with detailed solutions','Daily quizzes','Rank & leaderboard','Wrong-question practice','Unlimited re-attempts','Exam-like interface'])
+('pkg_starter', 'starter', 'Starter', 29, 'Get started with the essentials.', null, false, 1, '{"mocks":5,"questions":500,"subjectTests":10}', array['5 Full Mock Tests','10 Subject Tests','500+ Questions','Basic result analysis','Exam-like timer','Solutions for every question']),
+('pkg_complete', 'complete', 'Complete', 49, 'Most balanced value for serious aspirants.', 'Best Value', false, 2, '{"mocks":15,"questions":2000,"subjectTests":40}', array['15 Full Mock Tests','40 Subject / Chapter Tests','2,000+ Questions','Previous Year Questions','Detailed explanations','Performance analysis','Wrong-question practice']),
+('pkg_premium', 'premium', 'Premium', 99, 'The complete UP exams quiz workspace.', 'Best Selling', true, 3, '{"mocks":30,"questions":5000,"subjectTests":100}', array['30 Full Mock Tests','100+ Chapter / Subject Tests','5,000+ Questions','PYQs with detailed solutions','Daily quizzes','Rank & leaderboard','Wrong-question practice','Unlimited re-attempts','Exam-like interface'])
 on conflict (slug) do update set
   name = excluded.name,
   price_inr = excluded.price_inr,
@@ -264,55 +270,73 @@ on conflict (slug) do update set
   feature_limit = excluded.feature_limit,
   features = excluded.features;
 
-insert into public.categories (slug, name, description, sort_order)
+insert into public.categories (id, slug, name, description, sort_order)
 values
-('cdp', 'Child Development & Pedagogy', 'Learning theories, inclusive education and pedagogy fundamentals.', 1),
-('hindi', 'Hindi', 'Grammar, comprehension and pedagogy-oriented Hindi practice.', 2),
-('english', 'English', 'Language skills, comprehension and teaching methodology.', 3),
-('maths', 'Mathematics', 'Core maths concepts with speed-focused practice.', 4),
-('evs-science', 'EVS / Science', 'Environment, science basics and classroom application.', 5),
-('social-studies', 'Social Studies', 'History, geography, civics and social pedagogy.', 6)
+('cat_cdp', 'cdp', 'Child Development & Pedagogy', 'Learning theories, inclusive education and pedagogy fundamentals.', 1),
+('cat_hindi', 'hindi', 'Hindi', 'Grammar, comprehension and pedagogy-oriented Hindi practice.', 2),
+('cat_english', 'english', 'English', 'Language skills, comprehension and teaching methodology.', 3),
+('cat_maths', 'maths', 'Mathematics', 'Core maths concepts with speed-focused practice.', 4),
+('cat_evs', 'evs-science', 'EVS / Science', 'Environment, science basics and classroom application.', 5),
+('cat_social', 'social-studies', 'Social Studies', 'History, geography, civics and social pedagogy.', 6)
 on conflict (slug) do update set name = excluded.name, description = excluded.description, sort_order = excluded.sort_order;
 
-with starter as (select id from public.packages where slug = 'starter'),
-     complete as (select id from public.packages where slug = 'complete'),
-     premium as (select id from public.packages where slug = 'premium'),
-     cdp as (select id from public.categories where slug = 'cdp'),
-     maths as (select id from public.categories where slug = 'maths'),
-     evs as (select id from public.categories where slug = 'evs-science')
-insert into public.tests (slug, category_id, package_id, title, description, duration_minutes, total_marks, pass_percentage, is_published)
+insert into public.tests (id, slug, category_id, package_id, exam_code, exam_name, subject, test_type, access_kind, title, description, duration_minutes, total_marks, pass_percentage, is_published)
 values
-('tet-starter-mock-1', (select id from cdp), (select id from starter), 'Starter Full Mock 1', 'A balanced starter mock across major TET sections.', 25, 5, 60, true),
-('ctet-cdp-practice', (select id from cdp), (select id from complete), 'CTET CDP Practice Set', 'Child development and pedagogy questions with detailed explanations.', 20, 5, 60, true),
-('uptet-maths-speed', (select id from maths), (select id from premium), 'UPTET Maths Speed Drill', 'Timed maths practice for accuracy and speed.', 15, 5, 60, true),
-('evs-pyq-revision', (select id from evs), (select id from premium), 'EVS PYQ Revision', 'Previous-year style EVS questions with solution review.', 15, 5, 60, true)
+('test_free_daily_current_affairs', 'free-daily-current-affairs', 'cat_evs', 'pkg_starter', 'ALL', 'All UP Exams', 'Current Affairs', 'Free_Demo', 'free', 'Free Daily Current Affairs Quiz', 'A free daily current affairs set sampled from the complete UP exam bank.', 15, 20, 60, true),
+('test_starter_mock_1', 'tet-starter-mock-1', 'cat_cdp', 'pkg_starter', 'UPTET_CTET', 'UPTET / CTET', 'All Subjects', 'Subject_Mock', 'paid', 'Starter Full Mock 1', 'A balanced starter mock across major TET sections.', 25, 5, 60, true),
+('test_cdp_practice', 'ctet-cdp-practice', 'cat_cdp', 'pkg_complete', 'UPTET_CTET', 'UPTET / CTET', 'Child Development & Pedagogy', 'PYQ', 'paid', 'CTET CDP Practice Set', 'Child development and pedagogy questions with detailed explanations.', 20, 5, 60, true),
+('test_maths_speed', 'uptet-maths-speed', 'cat_maths', 'pkg_premium', 'UPTET_CTET', 'UPTET / CTET', 'Mathematics', 'Full_Mock', 'paid', 'UPTET Maths Speed Drill', 'Timed maths practice for accuracy and speed.', 15, 5, 60, true),
+('test_evs_pyq', 'evs-pyq-revision', 'cat_evs', 'pkg_premium', 'UPTET_CTET', 'UPTET / CTET', 'EVS / Science', 'PYQ', 'paid', 'EVS PYQ Revision', 'Previous-year style EVS questions with solution review.', 15, 5, 60, true)
 on conflict (slug) do update set
   title = excluded.title,
   description = excluded.description,
+  exam_code = excluded.exam_code,
+  exam_name = excluded.exam_name,
+  subject = excluded.subject,
+  test_type = excluded.test_type,
+  access_kind = excluded.access_kind,
   duration_minutes = excluded.duration_minutes,
   total_marks = excluded.total_marks,
   pass_percentage = excluded.pass_percentage,
   is_published = excluded.is_published;
 
-insert into public.questions (test_id, question_text, options, correct_answer, explanation, sort_order)
-select t.id, q.question_text, q.options::jsonb, q.correct_answer, q.explanation, q.sort_order
+insert into public.questions (id, test_id, question_text, options, correct_answer, explanation, sort_order)
+select q.id, t.id, q.question_text, q.options::jsonb, q.correct_answer, q.explanation, q.sort_order
 from public.tests t
 join (values
-('tet-starter-mock-1', 'Which principle best supports child-centred education?', '["Memorisation first","Learning by doing","Punishment for errors","One-way lecture"]', 'Learning by doing', 'Child-centred education values active participation, exploration and learning by doing.', 1),
-('tet-starter-mock-1', 'A formative assessment is mainly used to:', '["Rank students only","Improve learning during instruction","Replace all exams","Select teachers"]', 'Improve learning during instruction', 'Formative assessment gives feedback during the learning process so teaching can be adjusted.', 2),
-('tet-starter-mock-1', 'Which is a primary number?', '["1","2","4","9"]', '2', 'Two is the smallest prime number because it has exactly two factors: 1 and itself.', 3),
-('ctet-cdp-practice', 'Inclusive education means:', '["Teaching only high scorers","Separating children by ability","Welcoming diverse learners in one classroom","Avoiding assessment"]', 'Welcoming diverse learners in one classroom', 'Inclusive classrooms adapt support so learners with different needs can participate together.', 1),
-('ctet-cdp-practice', 'The zone of proximal development was proposed by:', '["Piaget","Vygotsky","Skinner","Thorndike"]', 'Vygotsky', 'Vygotsky described the gap between what a learner can do alone and with guidance as ZPD.', 2),
-('uptet-maths-speed', 'What is 25% of 240?', '["40","50","60","80"]', '60', '25% is one-fourth, and one-fourth of 240 is 60.', 1),
-('uptet-maths-speed', 'The next number in 3, 6, 12, 24 is:', '["30","36","42","48"]', '48', 'Each term is doubled, so 24 doubled is 48.', 2),
-('evs-pyq-revision', 'Which gas do plants mainly absorb for photosynthesis?', '["Oxygen","Nitrogen","Carbon dioxide","Hydrogen"]', 'Carbon dioxide', 'Plants use carbon dioxide and water to prepare food during photosynthesis.', 1),
-('evs-pyq-revision', 'A good EVS classroom should encourage:', '["Only textbook copying","Observation and questioning","Silent memorisation","No field activity"]', 'Observation and questioning', 'EVS learning becomes meaningful when children observe, ask questions and connect concepts to life.', 2)
-) as q(test_slug, question_text, options, correct_answer, explanation, sort_order)
+('q_starter_1', 'tet-starter-mock-1', 'Which principle best supports child-centred education?', '["Memorisation first","Learning by doing","Punishment for errors","One-way lecture"]', 'Learning by doing', 'Child-centred education values active participation, exploration and learning by doing.', 1),
+('q_starter_2', 'tet-starter-mock-1', 'A formative assessment is mainly used to:', '["Rank students only","Improve learning during instruction","Replace all exams","Select teachers"]', 'Improve learning during instruction', 'Formative assessment gives feedback during the learning process so teaching can be adjusted.', 2),
+('q_starter_3', 'tet-starter-mock-1', 'Which is a prime number?', '["1","2","4","9"]', '2', 'Two is the smallest prime number because it has exactly two factors: 1 and itself.', 3),
+('q_cdp_1', 'ctet-cdp-practice', 'Inclusive education means:', '["Teaching only high scorers","Separating children by ability","Welcoming diverse learners in one classroom","Avoiding assessment"]', 'Welcoming diverse learners in one classroom', 'Inclusive classrooms adapt support so learners with different needs can participate together.', 1),
+('q_cdp_2', 'ctet-cdp-practice', 'The zone of proximal development was proposed by:', '["Piaget","Vygotsky","Skinner","Thorndike"]', 'Vygotsky', 'Vygotsky described the gap between what a learner can do alone and with guidance as ZPD.', 2),
+('q_maths_1', 'uptet-maths-speed', 'What is 25% of 240?', '["40","50","60","80"]', '60', '25% is one-fourth, and one-fourth of 240 is 60.', 1),
+('q_maths_2', 'uptet-maths-speed', 'The next number in 3, 6, 12, 24 is:', '["30","36","42","48"]', '48', 'Each term is doubled, so 24 doubled is 48.', 2),
+('q_evs_1', 'evs-pyq-revision', 'Which gas do plants mainly absorb for photosynthesis?', '["Oxygen","Nitrogen","Carbon dioxide","Hydrogen"]', 'Carbon dioxide', 'Plants use carbon dioxide and water to prepare food during photosynthesis.', 1),
+('q_evs_2', 'evs-pyq-revision', 'A good EVS classroom should encourage:', '["Only textbook copying","Observation and questioning","Silent memorisation","No field activity"]', 'Observation and questioning', 'EVS learning becomes meaningful when children observe, ask questions and connect concepts to life.', 2)
+) as q(id, test_slug, question_text, options, correct_answer, explanation, sort_order)
 on q.test_slug = t.slug
-on conflict do nothing;
+on conflict (id) do update set
+  question_text = excluded.question_text,
+  options = excluded.options,
+  correct_answer = excluded.correct_answer,
+  explanation = excluded.explanation,
+  sort_order = excluded.sort_order;
 
 insert into public.settings (key, value)
 values
 ('payments', '{"provider":"paddle","mode":"test","liveCredentialsRequired":true,"checkoutConfigured":false}'::jsonb),
 ('platform', '{"brand":"UPQuizBazaar","supportEmail":"support@upquizbazaar.example"}'::jsonb)
 on conflict (key) do update set value = excluded.value, updated_at = now();
+
+grant usage on schema public to anon, authenticated, service_role;
+grant execute on function public.has_role(uuid, public.app_role) to authenticated, service_role;
+grant execute on function public.is_admin() to authenticated, service_role;
+
+grant select on public.packages, public.categories, public.tests, public.questions
+to anon, authenticated, service_role;
+
+grant select, insert, update on public.profiles, public.user_roles, public.payments, public.entitlements, public.attempts
+to authenticated, service_role;
+
+grant select, insert, update, delete on public.packages, public.categories, public.tests, public.questions, public.settings
+to service_role;

@@ -13,26 +13,22 @@ export function useAuthSession(): AuthState {
 
   useEffect(() => {
     let mounted = true;
-    if (window.localStorage.getItem("upquizbazaar_demo_session") === "1") {
-      setState({
-        status: "unavailable",
-        email: "demo@upquizbazaar.example",
-        unavailable: true,
-      });
-      return () => {
-        mounted = false;
-      };
-    }
+    const authTimeout = window.setTimeout(() => {
+      if (mounted) setState({ status: "unauthenticated" });
+    }, 2500);
+    window.localStorage.removeItem("upquizbazaar_demo_session");
 
     supabase.auth
       .getSession()
       .then(({ data }) => {
         if (!mounted) return;
+        window.clearTimeout(authTimeout);
         const email = data.session?.user.email;
         setState(email ? { status: "authenticated", email } : { status: "unauthenticated" });
       })
       .catch(() => {
         if (!mounted) return;
+        window.clearTimeout(authTimeout);
         setState({
           status: "unavailable",
           email: "demo@upquizbazaar.example",
@@ -47,6 +43,7 @@ export function useAuthSession(): AuthState {
 
     return () => {
       mounted = false;
+      window.clearTimeout(authTimeout);
       data.subscription.unsubscribe();
     };
   }, []);

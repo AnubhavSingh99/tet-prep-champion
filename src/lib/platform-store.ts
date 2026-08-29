@@ -6,6 +6,7 @@ import {
   type AdminOverview,
   type Attempt,
   type AttemptResult,
+  type Category,
   type DashboardData,
   type Entitlement,
   type LeaderboardEntry,
@@ -15,6 +16,7 @@ import {
   type PlanSlug,
   type PublicQuestion,
   type Question,
+  type TestType,
   type TestSummary,
   getPlan,
   planRank,
@@ -49,6 +51,19 @@ const TEST_TYPE_LABELS: Record<string, string> = {
 const ALL_TESTS = buildBankTests();
 const FREE_DAILY_TEST =
   ALL_TESTS.find((test) => test.slug === FREE_DAILY_TEST_SLUG) ?? ALL_TESTS[0];
+
+type AuthClaims = {
+  email?: string;
+  user_metadata?: {
+    full_name?: string;
+    name?: string;
+  };
+};
+
+export type AuthContext = {
+  userId: string;
+  claims?: AuthClaims;
+};
 
 const demoProfile: LearnerProfile = {
   id: DEMO_USER_ID,
@@ -234,6 +249,145 @@ export function isCloudConfigured(): boolean {
   return Boolean(process.env["SUPABASE_URL"] && process.env["SUPABASE_SERVICE_ROLE_KEY"]);
 }
 
+async function getSupabaseAdmin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
+function getClaimEmail(claims: AuthClaims | undefined): string {
+  return claims?.email ?? "learner@upquizbazaar.example";
+}
+
+function getClaimName(claims: AuthClaims | undefined): string {
+  return (
+    claims?.user_metadata?.full_name ??
+    claims?.user_metadata?.name ??
+    getClaimEmail(claims).split("@")[0] ??
+    "Learner"
+  );
+}
+
+function packageFromId(packageId: string | null | undefined): PackagePlan {
+  return (
+    PACKAGE_PLANS.find((plan) => plan.id === packageId || plan.slug === packageId) ??
+    PACKAGE_PLANS[0]
+  );
+}
+
+function mapAttemptRow(row: Record<string, unknown>): Attempt {
+  return {
+    id: String(row.id),
+    testId: String(row.test_id),
+    testTitle: String(row.test_title ?? "Untitled Test"),
+    status: row.status as Attempt["status"],
+    answers: (row.answers as Record<string, string> | null) ?? {},
+    score: row.score == null ? undefined : Number(row.score),
+    percentage: row.percentage == null ? undefined : Math.round(Number(row.percentage)),
+    correctCount: row.correct_count == null ? undefined : Number(row.correct_count),
+    wrongCount: row.wrong_count == null ? undefined : Number(row.wrong_count),
+    startedAt: String(row.started_at),
+    expiresAt: String(row.expires_at),
+    submittedAt: row.submitted_at ? String(row.submitted_at) : undefined,
+  };
+}
+
+async function ensureLearnerProfile(ctx: AuthContext): Promise<LearnerProfile> {
+  const supabase = await getSupabaseAdmin();
+  const email = getClaimEmail(ctx.claims);
+  const fullName = getClaimName(ctx.claims);
+
+  const { error: upsertError } = await supabase.from("profiles").upsert(
+    {
+      id: ctx.userId,
+      full_name: fullName,
+      exam_goal: "UPTET / CTET",
+    },
+    { onConflict: "id", ignoreDuplicates: true },
+  );
+  if (upsertError) throw new Error(`Profile setup failed: ${upsertError.message}`);
+
+  await supabase
+    .from("user_roles")
+    .upsert({ user_id: ctx.userId, role: "learner" }, { onConflict: "user_id,role" });
+
+  const [{ data: profile, error: profileError }, { data: roles, error: roleError }] =
+    await Promise.all([
+      supabase.from("profiles").select("id, full_name, exam_goal").eq("id", ctx.userId).single(),
+      supabase.from("user_roles").select("role").eq("user_id", ctx.userId),
+    ]);
+
+  if (profileError) throw new Error(`Profile load failed: ${profileError.message}`);
+  if (roleError) throw new Error(`Role load failed: ${roleError.message}`);
+
+  return {
+    id: String(profile.id),
+    email,
+    fullName: profile.full_name || fullName,
+    examGoal: profile.exam_goal || "UPTET / CTET",
+    roles: (roles ?? []).map((row) => row.role as LearnerProfile["roles"][number]),
+  };
+}
+
+async function getDbEntitlements(userId: string): Promise<Entitlement[]> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("entitlements")
+    .select("package_id, exam_code, exam_name, status, expires_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`Entitlements load failed: ${error.message}`);
+  return (data ?? []).map((row) => {
+    const plan = packageFromId(row.package_id);
+    return {
+      packageSlug: plan.slug,
+      packageName: `${row.exam_name} ${plan.name}`,
+      examCode: row.exam_code,
+      examName: row.exam_name,
+      status: row.status as Entitlement["status"],
+      expiresAt: row.expires_at ?? undefined,
+    };
+  });
+}
+
+async function getDbPayments(userId: string): Promise<PaymentRecord[]> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("payments")
+    .select("id, package_id, exam_code, exam_name, amount_inr, status, created_at, failure_reason")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`Payments load failed: ${error.message}`);
+  return (data ?? []).map((row) => {
+    const plan = packageFromId(row.package_id);
+    return {
+      id: row.id,
+      packageSlug: plan.slug,
+      packageName: `${row.exam_name} ${plan.name}`,
+      examCode: row.exam_code,
+      examName: row.exam_name,
+      amountInr: row.amount_inr,
+      status: row.status as PaymentRecord["status"],
+      createdAt: row.created_at,
+      message:
+        row.failure_reason ||
+        (row.status === "verified"
+          ? "Verified in test mode. Access is active."
+          : "Checkout is pending provider confirmation."),
+    };
+  });
+}
+
+async function getDbAttempts(userId: string): Promise<Attempt[]> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("attempts")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`Attempts load failed: ${error.message}`);
+  return (data ?? []).map((row) => mapAttemptRow(row as Record<string, unknown>));
+}
+
 export function getPackages(): PackagePlan[] {
   return PACKAGE_PLANS;
 }
@@ -306,6 +460,49 @@ export function getDashboard(): DashboardData {
   };
 }
 
+export async function getDashboardForUser(ctx: AuthContext): Promise<DashboardData> {
+  const [profile, entitlements, purchases, attempts] = await Promise.all([
+    ensureLearnerProfile(ctx),
+    getDbEntitlements(ctx.userId),
+    getDbPayments(ctx.userId),
+    getDbAttempts(ctx.userId),
+  ]);
+  const submitted = attempts.filter((attempt) => attempt.status === "submitted");
+  const averageScore = submitted.length
+    ? Math.round(
+        submitted.reduce((sum, attempt) => sum + (attempt.percentage ?? 0), 0) / submitted.length,
+      )
+    : 0;
+
+  return {
+    profile,
+    entitlements,
+    purchases,
+    attempts,
+    recommendedTests: getTestsForLearner(entitlements)
+      .sort((a, b) => Number(b.isUnlocked) - Number(a.isUnlocked))
+      .slice(0, 3),
+    examBundles: UP_EXAM_BUNDLES,
+    syllabusFocus: UP_EXAM_BUNDLES.slice(0, 4).map((bundle, index) => ({
+      bundleId: bundle.id,
+      completed: index + 1,
+      total: bundle.syllabus.length,
+      nextTopics: bundle.syllabus.slice(0, 2),
+    })),
+    stats: {
+      testsTaken: submitted.length,
+      averageScore,
+      wrongQuestions: submitted.reduce((sum, attempt) => sum + (attempt.wrongCount ?? 0), 0),
+      rank: submitted.length ? 28 : 0,
+    },
+  };
+}
+
+export async function getCatalogForUser(ctx: AuthContext): Promise<TestSummary[]> {
+  await ensureLearnerProfile(ctx);
+  return getTestsForLearner(await getDbEntitlements(ctx.userId));
+}
+
 export function getTestRunner(testSlug: string) {
   const test = ALL_TESTS.find((item) => item.slug === testSlug);
   if (!test) return undefined;
@@ -329,6 +526,32 @@ export function getTestRunner(testSlug: string) {
   };
 }
 
+export async function getTestRunnerForUser(testSlug: string, ctx: AuthContext) {
+  const test = ALL_TESTS.find((item) => item.slug === testSlug);
+  if (!test) return undefined;
+  await ensureLearnerProfile(ctx);
+  const summary = getTestsForLearner(await getDbEntitlements(ctx.userId)).find(
+    (item) => item.slug === testSlug,
+  );
+  if (!summary?.isUnlocked) {
+    return {
+      locked: true as const,
+      test: summary,
+      questions: [],
+      attempt: undefined,
+    };
+  }
+  const publicQuestions: PublicQuestion[] = test.questions.map(
+    ({ correctAnswer, explanation, ...question }) => question,
+  );
+  return {
+    locked: false as const,
+    test: summary,
+    questions: publicQuestions,
+    attempt: await getOrCreateDbAttempt(ctx.userId, test.id, test.title, test.durationMinutes),
+  };
+}
+
 function getOrCreateAttempt(testId: string, testTitle: string, durationMinutes: number): Attempt {
   const active = demoAttempts.find(
     (attempt) => attempt.testId === testId && attempt.status === "in_progress",
@@ -347,6 +570,42 @@ function getOrCreateAttempt(testId: string, testTitle: string, durationMinutes: 
   };
   demoAttempts = [attempt, ...demoAttempts];
   return attempt;
+}
+
+async function getOrCreateDbAttempt(
+  userId: string,
+  testId: string,
+  testTitle: string,
+  durationMinutes: number,
+): Promise<Attempt> {
+  const supabase = await getSupabaseAdmin();
+  const { data: active, error: activeError } = await supabase
+    .from("attempts")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("test_id", testId)
+    .eq("status", "in_progress")
+    .maybeSingle();
+  if (activeError) throw new Error(`Attempt load failed: ${activeError.message}`);
+  if (active) return mapAttemptRow(active as Record<string, unknown>);
+
+  const startedAt = new Date();
+  const expiresAt = new Date(Date.now() + durationMinutes * 60_000);
+  const { data, error } = await supabase
+    .from("attempts")
+    .insert({
+      user_id: userId,
+      test_id: testId,
+      test_title: testTitle,
+      status: "in_progress",
+      answers: {},
+      started_at: startedAt.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(`Attempt start failed: ${error.message}`);
+  return mapAttemptRow(data as Record<string, unknown>);
 }
 
 export function submitAttempt(input: {
@@ -385,16 +644,109 @@ export function submitAttempt(input: {
   return { ...attempt, questions };
 }
 
+export async function submitAttemptForUser(
+  input: { attemptId: string; answers: Record<string, string> },
+  ctx: AuthContext,
+): Promise<AttemptResult> {
+  const supabase = await getSupabaseAdmin();
+  const { data: row, error: loadError } = await supabase
+    .from("attempts")
+    .select("*")
+    .eq("id", input.attemptId)
+    .eq("user_id", ctx.userId)
+    .single();
+  if (loadError) throw new Error(`Attempt unavailable: ${loadError.message}`);
+
+  const attempt = mapAttemptRow(row as Record<string, unknown>);
+  const test = ALL_TESTS.find((item) => item.id === attempt.testId);
+  if (!test) throw new Error("Test unavailable");
+
+  const questions = test.questions.map((question) => {
+    const selected = input.answers[question.id];
+    return {
+      questionId: question.id,
+      prompt: question.prompt,
+      options: question.options,
+      selected,
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation,
+      isCorrect: selected === question.correctAnswer,
+    };
+  });
+  const correctCount = questions.filter((question) => question.isCorrect).length;
+  const score = correctCount;
+  const percentage = Math.round((score / test.questions.length) * 100);
+  const submittedAt = new Date().toISOString();
+
+  const { data: updated, error: updateError } = await supabase
+    .from("attempts")
+    .update({
+      answers: input.answers,
+      status: "submitted",
+      score,
+      percentage,
+      correct_count: correctCount,
+      wrong_count: test.questions.length - correctCount,
+      submitted_at: submittedAt,
+    })
+    .eq("id", input.attemptId)
+    .eq("user_id", ctx.userId)
+    .select("*")
+    .single();
+  if (updateError) throw new Error(`Attempt submit failed: ${updateError.message}`);
+
+  return { ...mapAttemptRow(updated as Record<string, unknown>), questions };
+}
+
 export function getAttemptResult(attemptId: string): AttemptResult | undefined {
   const attempt = demoAttempts.find((item) => item.id === attemptId);
   if (!attempt) return undefined;
   return submitAttempt({ attemptId, answers: attempt.answers });
 }
 
+export async function getAttemptResultForUser(
+  attemptId: string,
+  ctx: AuthContext,
+): Promise<AttemptResult | undefined> {
+  const attempt = (await getDbAttempts(ctx.userId)).find((item) => item.id === attemptId);
+  if (!attempt) return undefined;
+  const test = ALL_TESTS.find((item) => item.id === attempt.testId);
+  if (!test) return undefined;
+  const questions = test.questions.map((question) => {
+    const selected = attempt.answers[question.id];
+    return {
+      questionId: question.id,
+      prompt: question.prompt,
+      options: question.options,
+      selected,
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation,
+      isCorrect: selected === question.correctAnswer,
+    };
+  });
+  return { ...attempt, questions };
+}
+
 export function getWrongQuestions(): AttemptResult[] {
   return demoAttempts
     .filter((attempt) => attempt.status === "submitted")
     .map((attempt) => getAttemptResult(attempt.id))
+    .filter((attempt): attempt is AttemptResult => Boolean(attempt))
+    .map((attempt) => ({
+      ...attempt,
+      questions: attempt.questions.filter((question) => !question.isCorrect),
+    }))
+    .filter((attempt) => attempt.questions.length > 0);
+}
+
+export async function getWrongQuestionsForUser(ctx: AuthContext): Promise<AttemptResult[]> {
+  const attempts = await getDbAttempts(ctx.userId);
+  const results = await Promise.all(
+    attempts
+      .filter((attempt) => attempt.status === "submitted")
+      .map((attempt) => getAttemptResultForUser(attempt.id, ctx)),
+  );
+  return results
     .filter((attempt): attempt is AttemptResult => Boolean(attempt))
     .map((attempt) => ({
       ...attempt,
@@ -413,6 +765,28 @@ export function getLeaderboard(): LeaderboardEntry[] {
       name: demoProfile.fullName,
       score: getDashboard().stats.averageScore,
       attempts: demoAttempts.length,
+    },
+  ];
+}
+
+export async function getLeaderboardForUser(ctx: AuthContext): Promise<LeaderboardEntry[]> {
+  const profile = await ensureLearnerProfile(ctx);
+  const attempts = await getDbAttempts(ctx.userId);
+  const submitted = attempts.filter((attempt) => attempt.status === "submitted");
+  const averageScore = submitted.length
+    ? Math.round(
+        submitted.reduce((sum, attempt) => sum + (attempt.percentage ?? 0), 0) / submitted.length,
+      )
+    : 0;
+  return [
+    { rank: 1, name: "Aarav Singh", score: 96, attempts: 24 },
+    { rank: 2, name: "Priya Verma", score: 94, attempts: 21 },
+    { rank: 3, name: "Neha Sharma", score: 91, attempts: 20 },
+    {
+      rank: submitted.length ? 28 : 0,
+      name: profile.fullName,
+      score: averageScore,
+      attempts: attempts.length,
     },
   ];
 }
@@ -439,6 +813,44 @@ export function createCheckout(input: { packageSlug: PlanSlug; examCode: string 
   return payment;
 }
 
+export async function createCheckoutForUser(
+  input: { packageSlug: PlanSlug; examCode: string },
+  ctx: AuthContext,
+): Promise<PaymentRecord> {
+  await ensureLearnerProfile(ctx);
+  const supabase = await getSupabaseAdmin();
+  const plan = getPlan(input.packageSlug);
+  if (!plan) throw new Error("Package unavailable");
+  const exam = getExamOption(input.examCode);
+  if (!exam) throw new Error("Exam unavailable");
+  const { data, error } = await supabase
+    .from("payments")
+    .insert({
+      user_id: ctx.userId,
+      package_id: plan.id,
+      exam_code: exam.code,
+      exam_name: exam.name,
+      provider: "paddle",
+      amount_inr: plan.priceInr,
+      status: "pending",
+    })
+    .select("id, package_id, exam_code, exam_name, amount_inr, status, created_at")
+    .single();
+  if (error) throw new Error(`Checkout setup failed: ${error.message}`);
+  return {
+    id: data.id,
+    packageSlug: plan.slug,
+    packageName: `${exam.name} ${plan.name}`,
+    examCode: data.exam_code,
+    examName: data.exam_name,
+    amountInr: data.amount_inr,
+    status: data.status as PaymentRecord["status"],
+    createdAt: data.created_at,
+    message:
+      "Paddle test checkout is waiting for provider confirmation. Access activates only after verified webhook state.",
+  };
+}
+
 export function markDemoPaymentVerified(paymentId: string): PaymentRecord {
   const payment = demoPurchases.find((item) => item.id === paymentId);
   if (!payment) throw new Error("Payment unavailable");
@@ -460,14 +872,84 @@ export function markDemoPaymentVerified(paymentId: string): PaymentRecord {
   return payment;
 }
 
+export async function markPaymentVerifiedForUser(
+  paymentId: string,
+  ctx: AuthContext,
+): Promise<PaymentRecord> {
+  const supabase = await getSupabaseAdmin();
+  const { data: payment, error: paymentError } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("id", paymentId)
+    .eq("user_id", ctx.userId)
+    .single();
+  if (paymentError) throw new Error(`Payment unavailable: ${paymentError.message}`);
+  const plan = packageFromId(payment.package_id);
+
+  const { data: updated, error: updateError } = await supabase
+    .from("payments")
+    .update({ status: "verified", verified_at: new Date().toISOString() })
+    .eq("id", paymentId)
+    .eq("user_id", ctx.userId)
+    .select("*")
+    .single();
+  if (updateError) throw new Error(`Payment verification failed: ${updateError.message}`);
+
+  const { error: entitlementError } = await supabase.from("entitlements").upsert(
+    {
+      user_id: ctx.userId,
+      package_id: plan.id,
+      exam_code: payment.exam_code,
+      exam_name: payment.exam_name,
+      payment_id: payment.id,
+      status: "active",
+    },
+    { onConflict: "user_id,exam_code,package_id" },
+  );
+  if (entitlementError)
+    throw new Error(`Entitlement activation failed: ${entitlementError.message}`);
+
+  return {
+    id: updated.id,
+    packageSlug: plan.slug,
+    packageName: `${updated.exam_name} ${plan.name}`,
+    examCode: updated.exam_code,
+    examName: updated.exam_name,
+    amountInr: updated.amount_inr,
+    status: updated.status as PaymentRecord["status"],
+    createdAt: updated.created_at,
+    message: "Verified in test mode. Access is active.",
+  };
+}
+
 export function getProfile(): LearnerProfile {
   return demoProfile;
+}
+
+export async function getProfileForUser(ctx: AuthContext): Promise<LearnerProfile> {
+  return ensureLearnerProfile(ctx);
 }
 
 export function updateProfile(input: { fullName: string; examGoal: string }): LearnerProfile {
   demoProfile.fullName = input.fullName.trim() || demoProfile.fullName;
   demoProfile.examGoal = input.examGoal.trim() || demoProfile.examGoal;
   return demoProfile;
+}
+
+export async function updateProfileForUser(
+  input: { fullName: string; examGoal: string },
+  ctx: AuthContext,
+): Promise<LearnerProfile> {
+  const supabase = await getSupabaseAdmin();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      full_name: input.fullName.trim(),
+      exam_goal: input.examGoal.trim(),
+    })
+    .eq("id", ctx.userId);
+  if (error) throw new Error(`Profile save failed: ${error.message}`);
+  return ensureLearnerProfile(ctx);
 }
 
 export function getAdminOverview(): AdminOverview {
@@ -510,5 +992,122 @@ export function getAdminOverview(): AdminOverview {
       { key: "answer_keys", value: "Hidden during active attempts; results computed server-side" },
       { key: "auth", value: "Email/password and Google via Supabase/Lovable Cloud auth" },
     ],
+  };
+}
+
+export async function getAdminOverviewForUser(ctx: AuthContext): Promise<AdminOverview> {
+  const profile = await ensureLearnerProfile(ctx);
+  if (!profile.roles.includes("admin")) {
+    throw new Error("Unauthorized: admin role required");
+  }
+  const supabase = await getSupabaseAdmin();
+  const [
+    attempts,
+    payments,
+    entitlements,
+    profiles,
+    roles,
+    packages,
+    categories,
+    settings,
+    authUsers,
+  ] = await Promise.all([
+    supabase.from("attempts").select("*").order("created_at", { ascending: false }),
+    supabase.from("payments").select("*").order("created_at", { ascending: false }),
+    supabase.from("entitlements").select("*"),
+    supabase.from("profiles").select("id, full_name, exam_goal"),
+    supabase.from("user_roles").select("user_id, role"),
+    supabase.from("packages").select("*").order("sort_order", { ascending: true }),
+    supabase.from("categories").select("*").order("sort_order", { ascending: true }),
+    supabase.from("settings").select("key, value").order("key", { ascending: true }),
+    supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+  ]);
+  if (attempts.error) throw new Error(`Admin attempts failed: ${attempts.error.message}`);
+  if (payments.error) throw new Error(`Admin payments failed: ${payments.error.message}`);
+  if (entitlements.error)
+    throw new Error(`Admin entitlements failed: ${entitlements.error.message}`);
+  if (profiles.error) throw new Error(`Admin profiles failed: ${profiles.error.message}`);
+  if (roles.error) throw new Error(`Admin roles failed: ${roles.error.message}`);
+  if (packages.error) throw new Error(`Admin packages failed: ${packages.error.message}`);
+  if (categories.error) throw new Error(`Admin categories failed: ${categories.error.message}`);
+  if (settings.error) throw new Error(`Admin settings failed: ${settings.error.message}`);
+  if (authUsers.error) throw new Error(`Admin auth users failed: ${authUsers.error.message}`);
+
+  const mappedPayments = (payments.data ?? []).map((row) => {
+    const plan = packageFromId(row.package_id);
+    return {
+      id: row.id,
+      packageSlug: plan.slug,
+      packageName: `${row.exam_name} ${plan.name}`,
+      examCode: row.exam_code,
+      examName: row.exam_name,
+      amountInr: row.amount_inr,
+      status: row.status as PaymentRecord["status"],
+      createdAt: row.created_at,
+      message: row.failure_reason || "Payment record from Supabase.",
+    };
+  });
+  const mappedAttempts = (attempts.data ?? []).map((row) =>
+    mapAttemptRow(row as Record<string, unknown>),
+  );
+  const profileById = new Map((profiles.data ?? []).map((item) => [item.id, item]));
+  const rolesByUser = new Map<string, LearnerProfile["roles"]>();
+  for (const role of roles.data ?? []) {
+    const userRoles = rolesByUser.get(role.user_id) ?? [];
+    rolesByUser.set(role.user_id, [...userRoles, role.role as LearnerProfile["roles"][number]]);
+  }
+  const mappedUsers: LearnerProfile[] = authUsers.data.users.map((user) => {
+    const userProfile = profileById.get(user.id);
+    return {
+      id: user.id,
+      email: user.email ?? "no-email@upquizbazaar.local",
+      fullName:
+        userProfile?.full_name ||
+        String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? "Learner"),
+      examGoal: userProfile?.exam_goal || "UP Exams",
+      roles: rolesByUser.get(user.id) ?? ["learner"],
+    };
+  });
+  const mappedPackages: PackagePlan[] = (packages.data ?? []).map((row) => ({
+    id: row.id,
+    slug: row.slug as PlanSlug,
+    name: row.name,
+    priceInr: row.price_inr,
+    tagline: row.tagline,
+    badge: row.badge ?? undefined,
+    highlight: row.is_featured,
+    features: row.features ?? [],
+    cta: getPlan(row.slug)?.cta ?? `Buy ${row.name}`,
+  }));
+  const mappedCategories: Category[] = (categories.data ?? []).map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    description: row.description ?? "",
+  }));
+
+  return {
+    ...getAdminOverview(),
+    metrics: {
+      learners: mappedUsers.length,
+      packages: mappedPackages.length,
+      publishedTests: getTestsForLearner().length,
+      questions: GENERATED_MOCK_QUESTIONS.length,
+      attempts: mappedAttempts.length,
+      verifiedPayments: mappedPayments.filter((payment) => payment.status === "verified").length,
+      revenueInr: mappedPayments
+        .filter((payment) => payment.status === "verified")
+        .reduce((sum, payment) => sum + payment.amountInr, 0),
+    },
+    users: mappedUsers,
+    packages: mappedPackages.length ? mappedPackages : PACKAGE_PLANS,
+    attempts: mappedAttempts,
+    payments: mappedPayments,
+    tests: getTestsForLearner(entitlements.data as Entitlement[] | undefined),
+    categories: mappedCategories.length ? mappedCategories : CATEGORIES,
+    settings: (settings.data ?? []).map((setting) => ({
+      key: setting.key,
+      value: JSON.stringify(setting.value),
+    })),
   };
 }
