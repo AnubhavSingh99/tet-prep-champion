@@ -125,7 +125,7 @@ create table public.payments (
   package_id text not null references public.packages(id),
   exam_code text not null,
   exam_name text not null,
-  provider text not null default 'paddle',
+  provider text not null default 'razorpay',
   provider_checkout_id text,
   provider_transaction_id text,
   amount_inr integer not null,
@@ -324,7 +324,7 @@ on conflict (id) do update set
 
 insert into public.settings (key, value)
 values
-('payments', '{"provider":"paddle","mode":"test","liveCredentialsRequired":true,"checkoutConfigured":false}'::jsonb),
+('payments', '{"provider":"razorpay","mode":"test","liveCredentialsRequired":true,"checkoutConfigured":true}'::jsonb),
 ('platform', '{"brand":"UPQuizBazaar","supportEmail":"support@upquizbazaar.example"}'::jsonb)
 on conflict (key) do update set value = excluded.value, updated_at = now();
 

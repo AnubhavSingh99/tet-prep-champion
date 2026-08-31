@@ -22,7 +22,6 @@ import {
   planRank,
 } from "./platform-model";
 import { GENERATED_MOCK_QUESTIONS, type GeneratedMockQuestion } from "./generated-mock-bank";
-
 const DEMO_USER_ID = "demo-user";
 const DEMO_NOW = "2026-08-29T07:00:00.000Z";
 
@@ -63,6 +62,19 @@ type AuthClaims = {
 export type AuthContext = {
   userId: string;
   claims?: AuthClaims;
+};
+
+export type RazorpayCheckout = PaymentRecord & {
+  razorpayOrderId: string;
+  razorpayKeyId: string;
+  amountPaise: number;
+  currency: string;
+};
+
+export type VerifyRazorpayPaymentInput = {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
 };
 
 const demoProfile: LearnerProfile = {
@@ -806,8 +818,7 @@ export function createCheckout(input: { packageSlug: PlanSlug; examCode: string 
     amountInr: plan.priceInr,
     status: "pending",
     createdAt: new Date().toISOString(),
-    message:
-      "Paddle test checkout is waiting for provider confirmation. Access activates only after verified webhook state.",
+    message: "Razorpay test checkout is waiting for verified payment confirmation.",
   };
   demoPurchases = [payment, ...demoPurchases];
   return payment;
@@ -816,13 +827,27 @@ export function createCheckout(input: { packageSlug: PlanSlug; examCode: string 
 export async function createCheckoutForUser(
   input: { packageSlug: PlanSlug; examCode: string },
   ctx: AuthContext,
-): Promise<PaymentRecord> {
+): Promise<RazorpayCheckout> {
   await ensureLearnerProfile(ctx);
   const supabase = await getSupabaseAdmin();
   const plan = getPlan(input.packageSlug);
   if (!plan) throw new Error("Package unavailable");
   const exam = getExamOption(input.examCode);
   if (!exam) throw new Error("Exam unavailable");
+  const { createRazorpayOrder, getRazorpayKeyId } = await import("./razorpay-server");
+  const amountPaise = Math.max(plan.priceInr * 100, 100);
+  const receipt = `upq_${Date.now().toString(36)}`;
+  const order = await createRazorpayOrder({
+    amountPaise,
+    currency: "INR",
+    receipt,
+    notes: {
+      package_id: plan.id,
+      package_slug: plan.slug,
+      exam_code: exam.code,
+      user_id: ctx.userId,
+    },
+  });
   const { data, error } = await supabase
     .from("payments")
     .insert({
@@ -830,9 +855,15 @@ export async function createCheckoutForUser(
       package_id: plan.id,
       exam_code: exam.code,
       exam_name: exam.name,
-      provider: "paddle",
+      provider: "razorpay",
+      provider_checkout_id: order.id,
       amount_inr: plan.priceInr,
       status: "pending",
+      raw_event: {
+        receipt,
+        razorpay_order_id: order.id,
+        razorpay_status: order.status,
+      },
     })
     .select("id, package_id, exam_code, exam_name, amount_inr, status, created_at")
     .single();
@@ -846,8 +877,11 @@ export async function createCheckoutForUser(
     amountInr: data.amount_inr,
     status: data.status as PaymentRecord["status"],
     createdAt: data.created_at,
-    message:
-      "Paddle test checkout is waiting for provider confirmation. Access activates only after verified webhook state.",
+    message: "Razorpay order created. Complete the payment modal to activate access.",
+    razorpayOrderId: order.id,
+    razorpayKeyId: getRazorpayKeyId(),
+    amountPaise: order.amount,
+    currency: order.currency,
   };
 }
 
@@ -855,8 +889,7 @@ export function markDemoPaymentVerified(paymentId: string): PaymentRecord {
   const payment = demoPurchases.find((item) => item.id === paymentId);
   if (!payment) throw new Error("Payment unavailable");
   payment.status = "verified";
-  payment.message =
-    "Verified in test mode. Production requires live Paddle credentials and webhook validation.";
+  payment.message = "Verified in Razorpay test mode. Access is active.";
   demoEntitlements = [
     {
       packageSlug: payment.packageSlug,
@@ -919,6 +952,70 @@ export async function markPaymentVerifiedForUser(
     status: updated.status as PaymentRecord["status"],
     createdAt: updated.created_at,
     message: "Verified in test mode. Access is active.",
+  };
+}
+
+export async function verifyRazorpayPaymentForUser(
+  input: VerifyRazorpayPaymentInput,
+  ctx: AuthContext,
+): Promise<PaymentRecord> {
+  const { verifyRazorpaySignature } = await import("./razorpay-server");
+  verifyRazorpaySignature(input);
+
+  const supabase = await getSupabaseAdmin();
+  const { data: payment, error: paymentError } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("provider", "razorpay")
+    .eq("provider_checkout_id", input.razorpayOrderId)
+    .eq("user_id", ctx.userId)
+    .single();
+  if (paymentError) throw new Error(`Payment unavailable: ${paymentError.message}`);
+
+  const plan = packageFromId(payment.package_id);
+  const { data: updated, error: updateError } = await supabase
+    .from("payments")
+    .update({
+      status: "verified",
+      provider_transaction_id: input.razorpayPaymentId,
+      verified_at: new Date().toISOString(),
+      raw_event: {
+        ...(typeof payment.raw_event === "object" && payment.raw_event ? payment.raw_event : {}),
+        razorpay_order_id: input.razorpayOrderId,
+        razorpay_payment_id: input.razorpayPaymentId,
+        verified_by: "signature",
+      },
+    })
+    .eq("id", payment.id)
+    .eq("user_id", ctx.userId)
+    .select("*")
+    .single();
+  if (updateError) throw new Error(`Payment verification failed: ${updateError.message}`);
+
+  const { error: entitlementError } = await supabase.from("entitlements").upsert(
+    {
+      user_id: ctx.userId,
+      package_id: plan.id,
+      exam_code: payment.exam_code,
+      exam_name: payment.exam_name,
+      payment_id: payment.id,
+      status: "active",
+    },
+    { onConflict: "user_id,exam_code,package_id" },
+  );
+  if (entitlementError)
+    throw new Error(`Entitlement activation failed: ${entitlementError.message}`);
+
+  return {
+    id: updated.id,
+    packageSlug: plan.slug,
+    packageName: `${updated.exam_name} ${plan.name}`,
+    examCode: updated.exam_code,
+    examName: updated.exam_name,
+    amountInr: updated.amount_inr,
+    status: updated.status as PaymentRecord["status"],
+    createdAt: updated.created_at,
+    message: "Razorpay payment verified. Access is active.",
   };
 }
 
@@ -988,7 +1085,7 @@ export function getAdminOverview(): AdminOverview {
     payments: demoPurchases,
     categories: CATEGORIES,
     settings: [
-      { key: "payments.mode", value: "Paddle test mode; live credentials pending" },
+      { key: "payments.mode", value: "Razorpay test mode; signature verification enabled" },
       { key: "answer_keys", value: "Hidden during active attempts; results computed server-side" },
       { key: "auth", value: "Email/password and Google via Supabase/Lovable Cloud auth" },
     ],
