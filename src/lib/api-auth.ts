@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
+import { getServerEnv } from "./runtime-env";
 import type { AuthContext } from "./platform-store";
 
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
@@ -18,8 +19,8 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 export async function requireApiAuth(request: Request): Promise<AuthContext> {
-  const supabaseUrl = process.env["SUPABASE_URL"];
-  const supabasePublishableKey = process.env["SUPABASE_PUBLISHABLE_KEY"];
+  const supabaseUrl = getServerEnv("SUPABASE_URL");
+  const supabasePublishableKey = getServerEnv("SUPABASE_PUBLISHABLE_KEY");
 
   if (!supabaseUrl || !supabasePublishableKey) {
     throw new Response("Supabase server environment is not configured", { status: 500 });

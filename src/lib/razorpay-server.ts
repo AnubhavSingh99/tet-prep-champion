@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 
+import { getServerEnv } from "./runtime-env";
+
 type RazorpayOrderResponse = {
   id: string;
   amount: number;
@@ -21,8 +23,8 @@ export class RazorpayOrderError extends Error {}
 export class RazorpaySignatureError extends Error {}
 
 function getRazorpayKeys() {
-  const keyId = process.env["RAZORPAY_KEY_ID"];
-  const keySecret = process.env["RAZORPAY_KEY_SECRET"];
+  const keyId = getServerEnv("RAZORPAY_KEY_ID");
+  const keySecret = getServerEnv("RAZORPAY_KEY_SECRET");
 
   if (!keyId || !keySecret) {
     throw new RazorpayConfigError("Razorpay test keys are not configured on the server");
