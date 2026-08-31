@@ -22,6 +22,17 @@ export class RazorpayConfigError extends Error {}
 export class RazorpayOrderError extends Error {}
 export class RazorpaySignatureError extends Error {}
 
+type RazorpaySdkClient = new (options: { key_id: string; key_secret: string }) => {
+  orders: {
+    create: (input: {
+      amount: number;
+      currency: string;
+      receipt: string;
+      notes?: Record<string, string>;
+    }) => Promise<RazorpayOrderResponse>;
+  };
+};
+
 function getRazorpayKeys() {
   const keyId = getServerEnv("RAZORPAY_KEY_ID");
   const keySecret = getServerEnv("RAZORPAY_KEY_SECRET");
@@ -90,7 +101,7 @@ export async function createRazorpayOrder(input: {
     RazorpayErrorResponse;
 
   if (response.status === 401) {
-    throw new RazorpayConfigError("Razorpay authentication failed. Check the key id and secret.");
+    return createRazorpayOrderWithSdk(input, keyId, keySecret);
   }
 
   if (!response.ok || !payload.id) {
@@ -102,6 +113,41 @@ export async function createRazorpayOrder(input: {
   }
 
   return payload;
+}
+
+async function createRazorpayOrderWithSdk(
+  input: {
+    amountPaise: number;
+    currency: string;
+    receipt: string;
+    notes?: Record<string, string>;
+  },
+  keyId: string,
+  keySecret: string,
+): Promise<RazorpayOrderResponse> {
+  try {
+    const module = (await import("razorpay")) as { default: RazorpaySdkClient };
+    const client = new module.default({
+      key_id: keyId,
+      key_secret: keySecret,
+    });
+    const order = await client.orders.create({
+      amount: input.amountPaise,
+      currency: input.currency,
+      receipt: input.receipt,
+      notes: input.notes,
+    });
+
+    if (!order?.id) throw new RazorpayOrderError("Razorpay SDK did not return an order id");
+    return order;
+  } catch (error) {
+    if (error instanceof RazorpayOrderError) throw error;
+    throw new RazorpayConfigError(
+      error instanceof Error
+        ? `Razorpay authentication failed: ${error.message}`
+        : "Razorpay authentication failed. Check the key id and secret.",
+    );
+  }
 }
 
 export function verifyRazorpaySignature(input: {
