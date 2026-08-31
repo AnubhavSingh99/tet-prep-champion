@@ -37,6 +37,11 @@ export function getRazorpayKeyId() {
   return getRazorpayKeys().keyId;
 }
 
+function encodeBasicAuth(value: string) {
+  if (typeof btoa === "function") return btoa(value);
+  return Buffer.from(value, "utf8").toString("base64");
+}
+
 export async function createRazorpayOrder(input: {
   amountPaise: number;
   currency: string;
@@ -48,7 +53,7 @@ export async function createRazorpayOrder(input: {
   }
 
   const { keyId, keySecret } = getRazorpayKeys();
-  const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+  const auth = encodeBasicAuth(`${keyId}:${keySecret}`);
   const response = await fetch("https://api.razorpay.com/v1/orders", {
     method: "POST",
     headers: {
