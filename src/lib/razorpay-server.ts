@@ -37,6 +37,24 @@ export function getRazorpayKeyId() {
   return getRazorpayKeys().keyId;
 }
 
+export function getRazorpayDiagnostics() {
+  const keyId = getServerEnv("RAZORPAY_KEY_ID");
+  const keySecret = getServerEnv("RAZORPAY_KEY_SECRET");
+  const secretDigest = keySecret
+    ? crypto.createHash("sha256").update(keySecret).digest("hex").slice(0, 12)
+    : null;
+
+  return {
+    hasKeyId: Boolean(keyId),
+    keyIdPrefix: keyId ? keyId.slice(0, 8) : null,
+    keyIdSuffix: keyId ? keyId.slice(-4) : null,
+    keyIdLength: keyId?.length ?? 0,
+    hasKeySecret: Boolean(keySecret),
+    keySecretLength: keySecret?.length ?? 0,
+    keySecretDigest: secretDigest,
+  };
+}
+
 function encodeBasicAuth(value: string) {
   if (typeof btoa === "function") return btoa(value);
   return Buffer.from(value, "utf8").toString("base64");

@@ -4,6 +4,7 @@ import { requireApiAuth } from "./api-auth";
 import { createCheckoutForUser, verifyRazorpayPaymentForUser } from "./platform-store";
 import {
   createRazorpayOrder,
+  getRazorpayDiagnostics,
   getRazorpayKeyId,
   RazorpayConfigError,
   RazorpayOrderError,
@@ -59,8 +60,24 @@ function errorResponse(error: unknown) {
 
 export async function handleRazorpayApi(request: Request): Promise<Response | undefined> {
   const url = new URL(request.url);
+  if (url.pathname === "/api/razorpay-health") {
+    try {
+      await requireApiAuth(request);
+      return json({
+        ok: true,
+        diagnostics: getRazorpayDiagnostics(),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  }
+
   if (request.method !== "POST") {
-    if (url.pathname === "/api/create-order" || url.pathname === "/api/verify-payment") {
+    if (
+      url.pathname === "/api/create-order" ||
+      url.pathname === "/api/verify-payment" ||
+      url.pathname === "/api/razorpay-health"
+    ) {
       return json({ error: "Method not allowed" }, { status: 405 });
     }
     return undefined;
